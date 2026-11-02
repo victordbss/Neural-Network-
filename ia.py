@@ -1,6 +1,7 @@
 from __future__ import annotations
 import numpy as np
-import math
+import json
+import os
 
 class InputLayer:
     def __init__(self, output_size : int):
@@ -8,7 +9,7 @@ class InputLayer:
         self.node_value : list = []
 
 class Layer:
-    def __init__(self, input_layer : Layer | InputLayer , output_size : int, weights : np.array = None, biases : np.array = None, output_layer : bool = False):
+    def __init__(self, input_layer : Layer | InputLayer , output_size : int, weights : np.array = np.array([]), biases : np.array = np.array([]), output_layer : bool = False):
         self.input_layer = input_layer
         self.output_size = output_size
         self.weights = weights
@@ -19,9 +20,9 @@ class Layer:
         self.init_layer()
 
     def init_layer(self):
-        if not self.weights:
+        if self.weights.size == 0:
             self.init_weights()
-        if not self.biases:
+        if self.biases.size == 0:
             self.init_biases()
 
     def init_weights(self):
@@ -185,6 +186,38 @@ class Network:
         cost = self.cost_function(inputs, outputs)
         print(f"-> COST : {cost:.6f}")
 
+    def save(self, file_name : str):
+        print("Saving ...")
+        data = {
+            "layers_sizes" : self.layers_sizes,
+            "input_layer_size" : self.layers[0].output_size
+        }
+
+        for i, layer in enumerate(self.layers[1:]):
+            data[i] = {
+                "output_size" : layer.output_size,
+                "weights" : layer.weights.tolist(),
+                "biases" : layer.biases.tolist()
+            }
+
+        os.makedirs("data", exist_ok=True) 
+
+        with open("data/" + file_name, "w") as f:
+            json.dump(data, f, indent=4)
+
+        print("Save finished !")
+
+    def load(self, filename : str):
+        with open("data/" + filename, "r") as f:
+            data = json.load(f)
+        self.layers_sizes = data['layers_sizes']
+        self.layers = [InputLayer(output_size=data['input_layer_size'])]
+        for i in range(len(self.layers_sizes[1:])):
+            layer = data[str(i)]
+            self.layers.append(Layer(input_layer=self.layers[i], output_size=layer['output_size'], weights=np.array(layer['weights']), biases=np.array(layer['biases'])))
+        self.layers[-1].output_layer = True
+
+        
 
 
 

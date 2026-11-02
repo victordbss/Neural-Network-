@@ -2,8 +2,8 @@ import ia as ia
 from data import *
 
 net = ia.Network(layers_sizes=[4, 10, 10, 2], learning_rate=1)
-net.training(X, Y, 150000, 100, 1.01)
-
+#net.training(X, Y, 15000, 100, 1.01)
+net.load("data1")
 
 user_input = ""
 while user_input != "stop":
