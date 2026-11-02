@@ -1,5 +1,6 @@
 /data
 test.py
+/previous_versions
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
