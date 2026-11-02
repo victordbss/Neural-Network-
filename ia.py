@@ -172,14 +172,23 @@ class Network:
         self.forward(inputs)
         self.back_propagation(inputs, outputs)
 
-    def training(self, inputs, outputs, epoch, notify_rate, learning_rate_ratio):
+    def training(self, inputs, outputs, epoch, notify_rate, learning_rate_ratio, package_size):
+        data_size = len(inputs)
+        package_index = 0
         for i in range(epoch):
-            self.propagation(inputs, outputs)
+            intputs_pack = inputs[package_index*package_size:(package_index + 1)*package_size]
+            outputs_pack = outputs[package_index*package_size:(package_index + 1)*package_size]
+            self.propagation(intputs_pack, outputs_pack)
 
             if i % notify_rate == 0:
-                cost = self.cost_function(inputs, outputs)
+                cost = self.cost_function(intputs_pack, outputs_pack)
                 print(f"Epoch {i} : coût = {cost:.6f}")
                 self.learning_rate /= learning_rate_ratio
+
+            if (package_index + 2) * package_size > data_size:
+                package_index = 0
+            else:
+                package_index += 1
 
         print(f"TRAINING FINISHED AFTER {epoch} EPOCH")
         print(f"==================")
