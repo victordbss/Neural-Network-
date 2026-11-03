@@ -1,7 +1,8 @@
 from __future__ import annotations
 import numpy as np
 import json
-import os
+from os import makedirs
+import time
 
 """
 La classe InputLayer est toujours le premier élèment de la liste des Layers présents dans la classe Network
@@ -211,14 +212,18 @@ class Network:
 
 
     # Fonction qui permet d'entrainer le neurones pendant un certains nombre de générations
-    def training(self, inputs : np.array, outputs : np.array, epoch : int = 100, notify_rate : int = 100, learning_rate_ratio : float = 1.001, package_size : int = None):
+    def training(self, inputs : np.array, outputs : np.array, epoch : int = None, training_duration : float = None, notify_rate : int = 100, learning_rate_ratio : float = 1.001, package_size : int = None):
         
         data_size = len(inputs)
         package_index = 0
 
         if not package_size:
             package_size = data_size
-        
+
+        if not epoch:
+            epoch = 10**10
+
+        start_time = time.time()
         for i in range(epoch):
             intputs_pack = inputs[package_index*package_size:(package_index + 1)*package_size]
             outputs_pack = outputs[package_index*package_size:(package_index + 1)*package_size]
@@ -228,13 +233,18 @@ class Network:
                 cost = self.cost_function(intputs_pack, outputs_pack)
                 print(f"Epoch {i} : coût = {cost:.6f}")
                 self.learning_rate /= learning_rate_ratio
+                if training_duration:
+                    if time.time() - start_time >= training_duration:
+                        break
 
             if (package_index + 2) * package_size > data_size:
                 package_index = 0
             else:
                 package_index += 1
 
-        print(f"TRAINING FINISHED AFTER {epoch} EPOCH")
+            
+
+        print(f"TRAINING FINISHED AFTER {i} EPOCH and {round(time.time() - start_time, 3)} seconds")
         print(f"==================")
         cost = self.cost_function(inputs, outputs)
         print(f"-> COST : {cost:.6f}")
@@ -255,7 +265,7 @@ class Network:
                 "biases" : layer.biases.tolist()
             }
 
-        os.makedirs("data", exist_ok=True) # Création d'un dossier si il n'existe pas
+        makedirs("data", exist_ok=True) # Création d'un dossier si il n'existe pas
 
         with open("data/" + file_name, "w") as f:
             json.dump(data, f, indent=4)
