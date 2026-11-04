@@ -29,8 +29,8 @@ class Layer:
 
         self.output_layer = output_layer # Vraie seulement si la couche est la dernière du réseau (celle qui génère l'output)
 
-        self.nodes_value : list = [] # Valeur des neurones après être passer dans la fonction d'activation (sigmoide)
-        self.z : list = [] # Valeur des neuronnes avant d'être passer dans la fonction d'activation
+        self.nodes_value : np.array = np.array([]) # Valeur des neurones après être passer dans la fonction d'activation (sigmoide)
+        self.z : np.array = np.array([]) # Valeur des neuronnes avant d'être passer dans la fonction d'activation
         self.init_layer()
 
     def init_layer(self):
@@ -63,16 +63,13 @@ class Layer:
 
     # Génère la valeur des neurones de la couche l en fonction des valeurs de la couche l-1
     def forward(self, inputs : np.array):
-        A = np.dot(self.weights, inputs) + self.biases
-        self.z.append(A)
+        A = np.dot(inputs, self.weights.T) + self.biases
+        self.z = A
         if not self.output_layer:
             A = self.sigmoid(A)
-        self.nodes_value.append(A)
+        self.nodes_value = A
         return A
 
-    def reset(self):
-        self.nodes_value = []
-        self.z = []
 
 
 
@@ -117,17 +114,14 @@ class Network:
     # Fonction qui transmet les inputs à travers le réseau jusqu'à l'output
     def forward(self, inputs_list : np.array) -> np.array:
 
-        for layer in self.layers[1:]:
-            layer.reset()
-
         self.layers[0].nodes_value = inputs_list
         # Fait passer input par input à travers le réseau
-        for inputs in inputs_list:
-            next_input = inputs
-            for layer in self.layers[1:]:
-                next_input = layer.forward(next_input)
+        
+        next_input = inputs_list
+        for layer in self.layers[1:]:
+            next_input = layer.forward(next_input)
 
-        return np.array(self.layers[-1].nodes_value)
+        return next_input
         
     # Fonction de coût (mesure l'erreur du réseau face à la matrice inputs)
     def cost_function(self, inputs : np.array, outputs : np.array) -> float:
@@ -144,8 +138,8 @@ class Network:
 
         # COUCHE SORTIE L
         # pas de dérivée puisque je veux que ma sortie puisse avoir des valeurs en dehors de 0, 1
-        erreur_sortie = (1/len(outputs))*(np.array(self.layers[-1].nodes_value).T - outputs.T) 
-        gradwL = np.dot(erreur_sortie, np.array(self.layers[-2].nodes_value)) #gardiant des poids de la dernière couche
+        erreur_sortie = (1/len(outputs))*(self.layers[-1].nodes_value.T - outputs.T) 
+        gradwL = np.dot(erreur_sortie, self.layers[-2].nodes_value) #gardiant des poids de la dernière couche
         gradbL = erreur_sortie.sum(axis = 1) #gradiant des biais de la dernière couche
 
         # Le delta est une partie du calcul du gradiant de la couche l qui doit être stocké car il est nécessaire au calcul du gradiant
@@ -156,8 +150,8 @@ class Network:
         Biases_gradiant = [gradbL]
 
         for i in range(len(self.layers_sizes) - 2):
-            newdelta = np.dot(self.layers[-i-1].weights.T, delta[i]) * self.dsig(np.array(self.layers[-i-2].z).T)
-            Weight_gradiant.append(np.dot(newdelta, np.array(self.layers[-i-3].nodes_value)))
+            newdelta = np.dot(self.layers[-i-1].weights.T, delta[i]) * self.dsig(self.layers[-i-2].z.T)
+            Weight_gradiant.append(np.dot(newdelta, self.layers[-i-3].nodes_value))
             Biases_gradiant.append(newdelta.sum(axis = 1))
             delta.append(newdelta)
 
