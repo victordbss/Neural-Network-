@@ -206,35 +206,33 @@ class Network:
 
 
     # Fonction qui permet d'entrainer le neurones pendant un certains nombre de générations
-    def training(self, inputs : np.array, outputs : np.array, epoch : int = None, training_duration : float = None, notify_rate : int = 100, learning_rate_ratio : float = 1.001, package_size : int = None):
-        
+    def training(self, inputs : np.array, outputs : np.array, epoch : int = None, training_duration : float = None, notify_rate : int = 100, learning_rate_ratio : float = 1.001, batch_size : int = None):
         data_size = len(inputs)
-        package_index = 0
 
-        if not package_size:
-            package_size = data_size
+        if not batch_size:
+            batch_size = data_size
 
         if not epoch:
             epoch = 10**10
 
         start_time = time.time()
         for i in range(epoch):
-            intputs_pack = inputs[package_index*package_size:(package_index + 1)*package_size]
-            outputs_pack = outputs[package_index*package_size:(package_index + 1)*package_size]
-            self.propagation(intputs_pack, outputs_pack)
+            indices = np.random.permutation(data_size)
+            X = inputs[indices]
+            Y = outputs[indices]
+            for start in range(0, data_size, batch_size):
+                x_batch = X[start:start + batch_size]
+                y_batch = Y[start:start + batch_size]
+                self.propagation(x_batch, y_batch)
 
             if i % notify_rate == 0:
-                cost = self.cost_function(intputs_pack, outputs_pack)
+                cost = self.cost_function(X, Y)
                 print(f"Epoch {i} : coût = {cost:.6f}")
                 self.learning_rate /= learning_rate_ratio
                 if training_duration:
                     if time.time() - start_time >= training_duration:
                         break
 
-            if (package_index + 2) * package_size > data_size:
-                package_index = 0
-            else:
-                package_index += 1
 
             
 
