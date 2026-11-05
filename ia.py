@@ -29,8 +29,8 @@ class Layer:
 
         self.output_layer = output_layer # Vraie seulement si la couche est la dernière du réseau (celle qui génère l'output)
 
-        self.nodes_value : list = [] # Valeur des neurones après être passer dans la fonction d'activation (sigmoide)
-        self.z : list = [] # Valeur des neuronnes avant d'être passer dans la fonction d'activation
+        self.nodes_value : np.array = np.array([]) # Valeur des neurones après être passer dans la fonction d'activation (sigmoide)
+        self.z : np.array = np.array([]) # Valeur des neuronnes avant d'être passer dans la fonction d'activation
         self.init_layer()
 
     def init_layer(self):
@@ -63,16 +63,13 @@ class Layer:
 
     # Génère la valeur des neurones de la couche l en fonction des valeurs de la couche l-1
     def forward(self, inputs : np.array):
-        A = np.dot(self.weights, inputs) + self.biases
-        self.z.append(A)
+        A = np.dot(inputs, self.weights.T) + self.biases
+        self.z = A
         if not self.output_layer:
             A = self.sigmoid(A)
-        self.nodes_value.append(A)
+        self.nodes_value = A
         return A
 
-    def reset(self):
-        self.nodes_value = []
-        self.z = []
 
 
 
@@ -117,17 +114,14 @@ class Network:
     # Fonction qui transmet les inputs à travers le réseau jusqu'à l'output
     def forward(self, inputs_list : np.array) -> np.array:
 
-        for layer in self.layers[1:]:
-            layer.reset()
-
         self.layers[0].nodes_value = inputs_list
         # Fait passer input par input à travers le réseau
-        for inputs in inputs_list:
-            next_input = inputs
-            for layer in self.layers[1:]:
-                next_input = layer.forward(next_input)
+        
+        next_input = inputs_list
+        for layer in self.layers[1:]:
+            next_input = layer.forward(next_input)
 
-        return np.array(self.layers[-1].nodes_value)
+        return next_input
         
     # Fonction de coût (mesure l'erreur du réseau face à la matrice inputs)
     def cost_function(self, inputs : np.array, outputs : np.array) -> float:
@@ -140,12 +134,12 @@ class Network:
         return xsig * (1 - xsig)
 
     # Fonction qui vient modifier les poids et biais du réseau pour faire diminuer la valeur de la fonction coût
-    def back_propagation(self, inputs : np.array, outputs : np.array):
+    def back_propagation(self, inputs : np.array, outputs : np.array) -> tuple:
 
         # COUCHE SORTIE L
         # pas de dérivée puisque je veux que ma sortie puisse avoir des valeurs en dehors de 0, 1
-        erreur_sortie = (1/len(outputs))*(np.array(self.layers[-1].nodes_value).T - outputs.T) 
-        gradwL = np.dot(erreur_sortie, np.array(self.layers[-2].nodes_value)) #gardiant des poids de la dernière couche
+        erreur_sortie = (1/len(outputs))*(self.layers[-1].nodes_value.T - outputs.T) 
+        gradwL = np.dot(erreur_sortie, self.layers[-2].nodes_value) #gardiant des poids de la dernière couche
         gradbL = erreur_sortie.sum(axis = 1) #gradiant des biais de la dernière couche
 
         # Le delta est une partie du calcul du gradiant de la couche l qui doit être stocké car il est nécessaire au calcul du gradiant
@@ -156,8 +150,8 @@ class Network:
         Biases_gradiant = [gradbL]
 
         for i in range(len(self.layers_sizes) - 2):
-            newdelta = np.dot(self.layers[-i-1].weights.T, delta[i]) * self.dsig(np.array(self.layers[-i-2].z).T)
-            Weight_gradiant.append(np.dot(newdelta, np.array(self.layers[-i-3].nodes_value)))
+            newdelta = np.dot(self.layers[-i-1].weights.T, delta[i]) * self.dsig(self.layers[-i-2].z.T)
+            Weight_gradiant.append(np.dot(newdelta, self.layers[-i-3].nodes_value))
             Biases_gradiant.append(newdelta.sum(axis = 1))
             delta.append(newdelta)
 
@@ -166,12 +160,15 @@ class Network:
         # On va donc regarder le coût de la fonction avant la modification et la comparée avec le cout après modification
         # Si le coût est supérieur alors on diminue le learning rate
 
-        layers = self.layers[1:][::-1]  
+        return Weight_gradiant, Biases_gradiant
 
+    def update_parameters(self, inputs : np.array, outputs : np.array, Weight_gradiant : list, Biases_gradiant : list):
+        layers = self.layers[1:][::-1]  
+        
         old_weights = [layer.weights.copy() for layer in layers]
         old_biases = [layer.biases.copy() for layer in layers]
 
-        old_cost = self.cost_function(inputs, outputs)
+        old_cost = self.cost_function(inputs=inputs, outputs=outputs)
 
         grad_norm_sq = sum(
             np.sum(gw**2) + np.sum(gb**2)
@@ -190,7 +187,7 @@ class Network:
                 layer.weights = old_weights[i] - eta * Weight_gradiant[i]
                 layer.biases = old_biases[i] - eta * Biases_gradiant[i]
 
-            new_cost = self.cost_function(inputs, outputs)
+            new_cost = self.cost_function(inputs=inputs, outputs=outputs)
 
             if np.isfinite(new_cost) and (
                 new_cost <= old_cost - c * eta * grad_norm_sq
@@ -205,48 +202,49 @@ class Network:
                 layer.weights = old_weights[i]
                 layer.biases = old_biases[i]
 
+
     # Fonction qui propage l'information dans le réseau en avant (forward) puis repart en arrière pour modifier les paramètres (back_propagation)
     def propagation(self, inputs : np.array, outputs : np.array):
         self.forward(inputs)
-        self.back_propagation(inputs, outputs)
+        Weight_gradiant, Biases_gradiant = self.back_propagation(inputs=inputs, outputs=outputs)
+        self.update_parameters(inputs=inputs, outputs=outputs, Weight_gradiant=Weight_gradiant, Biases_gradiant=Biases_gradiant)
+
 
 
     # Fonction qui permet d'entrainer le neurones pendant un certains nombre de générations
-    def training(self, inputs : np.array, outputs : np.array, epoch : int = None, training_duration : float = None, notify_rate : int = 100, learning_rate_ratio : float = 1.001, package_size : int = None):
-        
+    def training(self, inputs : np.array, outputs : np.array, epoch : int = None, training_duration : float = None, notify_rate : int = 100, learning_rate_ratio : float = 1.001, batch_size : int = None):
         data_size = len(inputs)
-        package_index = 0
 
-        if not package_size:
-            package_size = data_size
+        if not batch_size:
+            batch_size = data_size
 
         if not epoch:
             epoch = 10**10
 
         start_time = time.time()
         for i in range(epoch):
-            intputs_pack = inputs[package_index*package_size:(package_index + 1)*package_size]
-            outputs_pack = outputs[package_index*package_size:(package_index + 1)*package_size]
-            self.propagation(intputs_pack, outputs_pack)
+            indices = np.random.permutation(data_size)
+            X = inputs[indices]
+            Y = outputs[indices]
+            for start in range(0, data_size, batch_size):
+                x_batch = X[start:start + batch_size]
+                y_batch = Y[start:start + batch_size]
+                self.propagation(x_batch, y_batch)
 
             if i % notify_rate == 0:
-                cost = self.cost_function(intputs_pack, outputs_pack)
+                cost = self.cost_function(inputs=X, outputs=Y)
                 print(f"Epoch {i} : coût = {cost:.6f}")
                 self.learning_rate /= learning_rate_ratio
                 if training_duration:
                     if time.time() - start_time >= training_duration:
                         break
 
-            if (package_index + 2) * package_size > data_size:
-                package_index = 0
-            else:
-                package_index += 1
 
             
 
         print(f"TRAINING FINISHED AFTER {i} EPOCH and {round(time.time() - start_time, 3)} seconds")
         print(f"==================")
-        cost = self.cost_function(inputs, outputs)
+        cost = self.cost_function(inputs=inputs, outputs=outputs)
         print(f"-> COST : {cost:.6f}")
 
     # Fonction qui permet de sauvegarder l'état du réseau dans un fichier json
