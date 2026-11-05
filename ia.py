@@ -168,7 +168,7 @@ class Network:
         old_weights = [layer.weights.copy() for layer in layers]
         old_biases = [layer.biases.copy() for layer in layers]
 
-        old_cost = self.cost_function(inputs, outputs)
+        old_cost = self.cost_function(inputs=inputs, outputs=outputs)
 
         grad_norm_sq = sum(
             np.sum(gw**2) + np.sum(gb**2)
@@ -187,7 +187,7 @@ class Network:
                 layer.weights = old_weights[i] - eta * Weight_gradiant[i]
                 layer.biases = old_biases[i] - eta * Biases_gradiant[i]
 
-            new_cost = self.cost_function(inputs, outputs)
+            new_cost = self.cost_function(inputs=inputs, outputs=outputs)
 
             if np.isfinite(new_cost) and (
                 new_cost <= old_cost - c * eta * grad_norm_sq
@@ -206,7 +206,7 @@ class Network:
     # Fonction qui propage l'information dans le réseau en avant (forward) puis repart en arrière pour modifier les paramètres (back_propagation)
     def propagation(self, inputs : np.array, outputs : np.array):
         self.forward(inputs)
-        Weight_gradiant, Biases_gradiant = self.back_propagation(inputs, outputs)
+        Weight_gradiant, Biases_gradiant = self.back_propagation(inputs=inputs, outputs=outputs)
         self.update_parameters(inputs=inputs, outputs=outputs, Weight_gradiant=Weight_gradiant, Biases_gradiant=Biases_gradiant)
 
 
@@ -232,7 +232,7 @@ class Network:
                 self.propagation(x_batch, y_batch)
 
             if i % notify_rate == 0:
-                cost = self.cost_function(X, Y)
+                cost = self.cost_function(inputs=X, outputs=Y)
                 print(f"Epoch {i} : coût = {cost:.6f}")
                 self.learning_rate /= learning_rate_ratio
                 if training_duration:
@@ -244,7 +244,7 @@ class Network:
 
         print(f"TRAINING FINISHED AFTER {i} EPOCH and {round(time.time() - start_time, 3)} seconds")
         print(f"==================")
-        cost = self.cost_function(inputs, outputs)
+        cost = self.cost_function(inputs=inputs, outputs=outputs)
         print(f"-> COST : {cost:.6f}")
 
     # Fonction qui permet de sauvegarder l'état du réseau dans un fichier json
