@@ -134,7 +134,7 @@ class Network:
         return xsig * (1 - xsig)
 
     # Fonction qui vient modifier les poids et biais du réseau pour faire diminuer la valeur de la fonction coût
-    def back_propagation(self, inputs : np.array, outputs : np.array):
+    def back_propagation(self, inputs : np.array, outputs : np.array) -> tuple:
 
         # COUCHE SORTIE L
         # pas de dérivée puisque je veux que ma sortie puisse avoir des valeurs en dehors de 0, 1
@@ -160,8 +160,11 @@ class Network:
         # On va donc regarder le coût de la fonction avant la modification et la comparée avec le cout après modification
         # Si le coût est supérieur alors on diminue le learning rate
 
-        layers = self.layers[1:][::-1]  
+        return Weight_gradiant, Biases_gradiant
 
+    def update_parameters(self, inputs : np.array, outputs : np.array, Weight_gradiant : list, Biases_gradiant : list):
+        layers = self.layers[1:][::-1]  
+        
         old_weights = [layer.weights.copy() for layer in layers]
         old_biases = [layer.biases.copy() for layer in layers]
 
@@ -199,10 +202,13 @@ class Network:
                 layer.weights = old_weights[i]
                 layer.biases = old_biases[i]
 
+
     # Fonction qui propage l'information dans le réseau en avant (forward) puis repart en arrière pour modifier les paramètres (back_propagation)
     def propagation(self, inputs : np.array, outputs : np.array):
         self.forward(inputs)
-        self.back_propagation(inputs, outputs)
+        Weight_gradiant, Biases_gradiant = self.back_propagation(inputs, outputs)
+        self.update_parameters(inputs=inputs, outputs=outputs, Weight_gradiant=Weight_gradiant, Biases_gradiant=Biases_gradiant)
+
 
 
     # Fonction qui permet d'entrainer le neurones pendant un certains nombre de générations
