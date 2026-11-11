@@ -1,9 +1,9 @@
 import ia as ia
 from data import *
 
-net = ia.Network(layers_sizes=[2, 5, 1], learning_rate=0.5)
+net = ia.Network(layers_sizes=[2, 5, 1])
 
-net.training(inputs=X, outputs=Y, training_duration=15, batch_size=100, graph=True)
+net.training(inputs=X, outputs=Y, training_duration=15, batch_size=100, graph=True, lr_strategy='backtracking', lr_decay=1)
 net.save("data2")
 #net.load("data2")
 

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Literal
 import numpy as np
 import matplotlib.pyplot as plt
 import json
@@ -81,13 +82,12 @@ Elle comprends la tailles des couches de celui-ci ainsi que la liste des Layers
 Elle fait la liaison entre toutes les couches
 """
 class Network:
-    def __init__(self, layers_sizes : list [int], learning_rate : float = 0.1):
+    def __init__(self, layers_sizes : list [int]):
         self.layers_sizes = layers_sizes
         self.layers : list [Layer | InputLayer] = []
 
-        self.learning_rate = learning_rate
-
         self.previous_cost = None
+        self.learning_rate : float
 
         self.init_layers()
 
@@ -126,7 +126,10 @@ class Network:
         return next_input
         
     # Fonction de coût (mesure l'erreur du réseau face à la matrice inputs)
-    def cost_function(self, inputs : np.array, outputs : np.array) -> float:
+    def cost_function(self, outputs : np.array) -> float:
+        return np.sum((self.layers[-1].nodes_value - outputs)**2) * (1/(2 * len(outputs)))
+    
+    def forward_cost_function(self, inputs : np.array, outputs : np.array) -> float:
         return np.sum((self.forward(inputs) - outputs)**2) * (1/(2 * len(inputs)))
 
     # Fonction dérivée de la fonction d'activation (sigmoide)
@@ -164,57 +167,76 @@ class Network:
 
         return Weight_gradiant, Biases_gradiant
 
-    def update_parameters(self, inputs : np.array, outputs : np.array, Weight_gradiant : list, Biases_gradiant : list):
-        layers = self.layers[1:][::-1]  
+    def update_parameters(self, inputs : np.array, outputs : np.array, Weight_gradiant : list, Biases_gradiant : list, lr_decay : float, lr_strategy : str):
+
+        if lr_strategy not in ("fixed", "decay", "backtracking"):
+            raise ValueError(f"Stratégie inconnue : {lr_strategy}")
         
-        old_weights = [layer.weights.copy() for layer in layers]
-        old_biases = [layer.biases.copy() for layer in layers]
+        if lr_strategy == "fixed":
+            self.gradiant_descent(Weight_gradiant=Weight_gradiant, Biases_gradiant=Biases_gradiant)
 
-        old_cost = self.cost_function(inputs=inputs, outputs=outputs)
+        elif lr_strategy == "decay":
+            self.gradiant_descent(Weight_gradiant=Weight_gradiant, Biases_gradiant=Biases_gradiant)
+            self.learning_rate /= 1 + (lr_decay * 10e-6)
 
-        grad_norm_sq = sum(
-            np.sum(gw**2) + np.sum(gb**2)
-            for gw, gb in zip(Weight_gradiant, Biases_gradiant)
-        )
+        elif lr_strategy == "backtracking":
+            layers = self.layers[1:][::-1]  
+            
+            old_weights = [layer.weights.copy() for layer in layers]
+            old_biases = [layer.biases.copy() for layer in layers]
 
-        eta = self.learning_rate
-        beta = 0.5
-        c = 1e-4
+            old_cost = self.cost_function(outputs=outputs)
 
-        accepted = False
+            grad_norm_sq = sum(
+                np.sum(gw**2) + np.sum(gb**2)
+                for gw, gb in zip(Weight_gradiant, Biases_gradiant)
+            )
 
-        for _ in range(30):
+            eta = self.learning_rate
+            beta = 0.5
+            c = 1e-4
 
-            for i, layer in enumerate(layers):
-                layer.weights = old_weights[i] - eta * Weight_gradiant[i]
-                layer.biases = old_biases[i] - eta * Biases_gradiant[i]
+            accepted = False
 
-            new_cost = self.cost_function(inputs=inputs, outputs=outputs)
+            for _ in range(30):
 
-            if np.isfinite(new_cost) and (
-                new_cost <= old_cost - c * eta * grad_norm_sq
-            ):
-                accepted = True
-                break
+                for i, layer in enumerate(layers):
+                    layer.weights = old_weights[i] - eta * Weight_gradiant[i]
+                    layer.biases = old_biases[i] - eta * Biases_gradiant[i]
 
-            eta *= beta
+                new_cost = self.forward_cost_function(inputs=inputs, outputs=outputs)
 
-        if not accepted:
-            for i, layer in enumerate(layers):
-                layer.weights = old_weights[i]
-                layer.biases = old_biases[i]
+                if np.isfinite(new_cost) and (
+                    new_cost <= old_cost - c * eta * grad_norm_sq
+                ):
+                    accepted = True
+                    break
+
+                eta *= beta
+
+            if not accepted:
+                for i, layer in enumerate(layers):
+                    layer.weights = old_weights[i]
+                    layer.biases = old_biases[i]
+
+    def gradiant_descent(self, Weight_gradiant : list, Biases_gradiant : list):
+        for i, layer in enumerate(self.layers[1:][::-1]):
+            layer.weights -= self.learning_rate * Weight_gradiant[i]
+            layer.biases -= self.learning_rate * Biases_gradiant[i]
 
 
     # Fonction qui propage l'information dans le réseau en avant (forward) puis repart en arrière pour modifier les paramètres (back_propagation)
-    def propagation(self, inputs : np.array, outputs : np.array):
+    def propagation(self, inputs : np.array, outputs : np.array, lr_decay : float, lr_strategy : str):
         self.forward(inputs)
         Weight_gradiant, Biases_gradiant = self.back_propagation(inputs=inputs, outputs=outputs)
-        self.update_parameters(inputs=inputs, outputs=outputs, Weight_gradiant=Weight_gradiant, Biases_gradiant=Biases_gradiant)
+        self.update_parameters(inputs=inputs, outputs=outputs, Weight_gradiant=Weight_gradiant, Biases_gradiant=Biases_gradiant, lr_decay=lr_decay, lr_strategy=lr_strategy)
 
 
 
     # Fonction qui permet d'entrainer le neurones pendant un certains nombre de générations
-    def training(self, inputs : np.array, outputs : np.array, epoch : int = None, training_duration : float = None, notify_rate : int = 100, learning_rate_ratio : float = 1.001, batch_size : int = None, graph : bool = False):
+    def training(self, inputs : np.array, outputs : np.array, epoch : int = None, training_duration : float = None, notify_rate : int = 100, learning_rate : float = 1.001, lr_decay : float = 1.001, lr_strategy : Literal["fixed", "decay", "backtracking"] = "fixed", batch_size : int = None, graph : bool = False, point_type : str = "or"):
+        self.learning_rate = learning_rate
+        
         data_size = len(inputs)
 
         if not batch_size:
@@ -231,18 +253,17 @@ class Network:
             for start in range(0, data_size, batch_size):
                 x_batch = X[start:start + batch_size]
                 y_batch = Y[start:start + batch_size]
-                self.propagation(x_batch, y_batch)
+                self.propagation(inputs=x_batch, outputs=y_batch, lr_decay=lr_decay, lr_strategy=lr_strategy)
 
             if i % notify_rate == 0:
-                cost = self.cost_function(inputs=X, outputs=Y)
+                cost = self.forward_cost_function(inputs=X, outputs=Y)
                 print(f"Epoch {i} : coût = {cost:.6f}")
-                self.learning_rate /= learning_rate_ratio
                 if training_duration:
                     if time.time() - start_time >= training_duration:
                         break
 
                 if graph:
-                    plt.plot(i, math.log10(cost), "or")
+                    plt.plot(i, math.log10(cost), point_type)
         if graph:
             plt.xlabel("Epochs")
             plt.ylabel("Cost function")
@@ -253,7 +274,7 @@ class Network:
 
         print(f"TRAINING FINISHED AFTER {i} EPOCH and {round(time.time() - start_time, 3)} seconds")
         print(f"==================")
-        cost = self.cost_function(inputs=inputs, outputs=outputs)
+        cost = self.forward_cost_function(inputs=inputs, outputs=outputs)
         print(f"-> COST : {cost:.6f}")
 
     # Fonction qui permet de sauvegarder l'état du réseau dans un fichier json
