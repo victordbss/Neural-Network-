@@ -1,6 +1,8 @@
 from __future__ import annotations
 import numpy as np
+import matplotlib.pyplot as plt
 import json
+import math
 from os import makedirs
 import time
 
@@ -212,7 +214,7 @@ class Network:
 
 
     # Fonction qui permet d'entrainer le neurones pendant un certains nombre de générations
-    def training(self, inputs : np.array, outputs : np.array, epoch : int = None, training_duration : float = None, notify_rate : int = 100, learning_rate_ratio : float = 1.001, batch_size : int = None):
+    def training(self, inputs : np.array, outputs : np.array, epoch : int = None, training_duration : float = None, notify_rate : int = 100, learning_rate_ratio : float = 1.001, batch_size : int = None, graph : bool = False):
         data_size = len(inputs)
 
         if not batch_size:
@@ -238,6 +240,13 @@ class Network:
                 if training_duration:
                     if time.time() - start_time >= training_duration:
                         break
+
+                if graph:
+                    plt.plot(i, math.log10(cost), "or")
+        if graph:
+            plt.xlabel("Epochs")
+            plt.ylabel("Cost function")
+            plt.show()
 
 
             
